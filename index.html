@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>🥙 Doner Casino</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -382,9 +381,17 @@ async function init() {
   if (tg) { tg.ready(); tg.expand(); S.initData = tg.initData || ''; }
   S.demo = CFG.supabaseUrl === 'YOUR_SUPABASE_URL';
 
-  if (!S.demo) {
-    window._sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey);
-  }
+  // Supabase REST helper (без SDK — обходим CSP eval())
+  window._sbGet = async (table, params = '') => {
+    const r = await fetch(`${CFG.supabaseUrl}/rest/v1/${table}?${params}`, {
+      headers: {
+        'apikey': CFG.supabaseKey,
+        'Authorization': `Bearer ${CFG.supabaseKey}`,
+        'Accept': 'application/json',
+      }
+    });
+    return r.json();
+  };
 
   try {
     if (S.demo) {
@@ -635,9 +642,8 @@ async function loadLb() {
   }
   try {
     const col = S.lbType==='daily'?'daily_score': S.lbType==='total'?'total_score':'recipes_made';
-    const {data} = await window._sb.from('players')
-      .select('id,telegram_id,username,first_name,total_score,daily_score,recipes_made')
-      .order(col,{ascending:false}).limit(20);
+    const data = await window._sbGet('players',
+      `select=id,telegram_id,username,first_name,total_score,daily_score,recipes_made&order=${col}.desc&limit=20`);
     if (!data?.length) {
       el.innerHTML='<div class="empty"><div class="empty-ico">🏜️</div><div class="empty-txt">Пока никого</div></div>';
       return;
@@ -679,9 +685,8 @@ async function loadPvp() {
     return;
   }
   try {
-    const {data} = await window._sb.from('players')
-      .select('id,telegram_id,username,first_name,coins,ingredients')
-      .order('total_score',{ascending:false}).limit(20);
+    const data = await window._sbGet('players',
+      'select=id,telegram_id,username,first_name,coins,ingredients&order=total_score.desc&limit=20');
     const myId = S.player?.telegram_id;
     const others = (data||[]).filter(p=>p.telegram_id!==myId);
     if (!others.length) {
