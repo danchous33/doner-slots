@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🥙 Doner Casino</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0705; --bg2: #1a0e06; --card: #241408; --card2: #341e0c;
+      --accent: #e8821a; --gold: #f5c518; --red: #e05252; --green: #2ecc71;
+      --text: #f5e6d3; --text2: #b39070; --text3: #7a5c40;
+      --border: rgba(232,130,26,0.22); --border2: rgba(232,130,26,0.5);
+      --nav-h: 68px; --header-h: 60px;
+      --radius: 16px; --radius-sm: 10px;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Rubik', sans-serif;
+      background: var(--bg); color: var(--text);
+      -webkit-tap-highlight-color: transparent; user-select: none;
+    }
+
+    /* ── LOADING ── */
+    #loading {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100; gap: 14px;
+      transition: opacity 0.35s;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    .ld-logo { font-size: 76px; animation: ldPulse 1.6s ease-in-out infinite;
+      filter: drop-shadow(0 0 18px rgba(232,130,26,0.55)); }
+    .ld-title { font-family: 'Alfa Slab One', serif; font-size: 26px;
+      color: var(--gold); letter-spacing: 2px;
+      text-shadow: 0 0 20px rgba(245,197,24,0.45); }
+    .ld-sub { font-size: 13px; color: var(--text2); letter-spacing: 1px; }
+    .ld-dots { display: flex; gap: 7px; margin-top: 6px; }
+    .ld-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      animation: ldBounce 1.4s ease-in-out infinite; }
+    .ld-dot:nth-child(2) { animation-delay: .2s; }
+    .ld-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes ldPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+    @keyframes ldBounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-8px);opacity:1} }
+
+    /* ── APP SHELL ── */
+    #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+    /* ── HEADER ── */
+    header {
+      height: var(--header-h); background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; flex-shrink: 0;
+    }
+    .h-user { display: flex; align-items: center; gap: 10px; }
+    .h-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #b05010);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .h-name { font-weight: 600; font-size: 14px; max-width: 140px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .h-coins {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(245,197,24,0.1); border: 1px solid rgba(245,197,24,0.3);
+      padding: 5px 13px; border-radius: 20px;
+    }
+    .h-coins-num { font-family: 'Alfa Slab One', serif; font-size: 15px; color: var(--gold); }
+
+    /* ── MAIN ── */
+    main { flex: 1; overflow-y: auto; overflow-x: hidden; }
+    main::-webkit-scrollbar { display: none; }
+    main { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* ── SCREENS ── */
+    .screen { display: none; padding: 14px 14px 28px; min-height: 100%; }
+    .screen.active { display: block; }
+
+    /* ── SLOT SCREEN ── */
+    .slot-box {
+      background: var(--card); border: 2px solid var(--border2);
+      border-radius: 22px; padding: 20px 16px 16px; margin-bottom: 14px;
+      position: relative; overflow: hidden;
+    }
+    .slot-box::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+    .slot-title { font-family: 'Alfa Slab One', serif; font-size: 20px;
+      color: var(--gold); text-align: center; margin-bottom: 18px; letter-spacing: 1px;
+      text-shadow: 0 0 12px rgba(245,197,24,0.4); }
+
+    .reels { display: flex; gap: 10px; justify-content: center; margin-bottom: 18px; }
+    .reel {
+      width: 84px; height: 84px; background: var(--bg);
+      border: 2px solid var(--border); border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 44px; transition: border-color 0.3s;
+      position: relative;
+    }
+    .reel.spinning { border-color: var(--accent); animation: reelShake 0.08s linear infinite; }
+    .reel.win { border-color: var(--gold); box-shadow: 0 0 18px rgba(245,197,24,0.5);
+      animation: winPop 0.45s ease-in-out; }
+    @keyframes reelShake { 0%,100%{transform:translateY(0)} 33%{transform:translateY(-3px)} 66%{transform:translateY(3px)} }
+    @keyframes winPop { 0%{transform:scale(1)} 45%{transform:scale(1.18)} 100%{transform:scale(1)} }
+
+    .spin-btn {
+      width: 100%; padding: 15px; background: linear-gradient(135deg, var(--accent), #b35c0a);
+      border: none; border-radius: 14px; font-family: 'Alfa Slab One', serif;
+      font-size: 19px; color: #fff; letter-spacing: 1px; cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      box-shadow: 0 4px 14px rgba(232,130,26,0.38);
+    }
+    .spin-btn:active { transform: scale(0.97); }
+    .spin-btn:disabled { opacity: 0.45; }
+
+    .spin-meta { display: flex; justify-content: space-between; margin-top: 10px; font-size: 12px; }
+    .spin-free { color: var(--green); font-weight: 600; }
+    .spin-paid { color: var(--text3); }
+
+    .win-msg {
+      margin-top: 14px; padding: 12px; border-radius: 12px;
+      font-weight: 700; font-size: 14px; text-align: center; transition: all 0.3s;
+    }
+    .win-msg.jackpot { background:rgba(245,197,24,.12); border:1px solid var(--gold); color:var(--gold);
+      animation: glowAlt 0.6s ease-in-out infinite alternate; }
+    .win-msg.big { background:rgba(46,204,113,.1); border:1px solid var(--green); color:var(--green); }
+    .win-msg.normal { background:var(--card2); border:1px solid var(--border); color:var(--text2); }
+    @keyframes glowAlt { from{box-shadow:0 0 8px rgba(245,197,24,.3)} to{box-shadow:0 0 22px rgba(245,197,24,.7)} }
+
+    .mini-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .mini-stat { background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px; text-align: center; }
+    .mini-stat-val { font-family:'Alfa Slab One',serif; font-size: 20px; color: var(--accent); }
+    .mini-stat-lbl { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+    /* ── BAG SCREEN ── */
+    .sec-title { font-family:'Alfa Slab One',serif; font-size: 17px;
+      color: var(--gold); margin-bottom: 12px; }
+    .ing-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 9px; margin-bottom: 20px; }
+    .ing-card { background: var(--card); border: 1px solid var(--border);
+      border-radius: 13px; padding: 10px 6px; text-align: center; }
+    .ing-card.has { border-color: var(--border2); }
+    .ing-emoji { font-size: 26px; }
+    .ing-count { font-family:'Alfa Slab One',serif; font-size: 15px; color: var(--accent); margin-top: 3px; }
+    .ing-name { font-size: 10px; color: var(--text2); margin-top: 2px; }
+    .sep { height: 1px; background: var(--border); margin: 16px 0; }
+    .recipe-list { display: flex; flex-direction: column; gap: 10px; }
+    .recipe-card { background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+    .recipe-card.can { border-color: var(--green); background: rgba(46,204,113,.05); }
+    .recipe-ico { font-size: 30px; flex-shrink: 0; }
+    .recipe-info { flex: 1; }
+    .recipe-name { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
+    .recipe-ings { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+    .recipe-reward { font-size: 12px; color: var(--gold); font-weight: 600; }
+    .cook-btn { padding: 8px 14px; background: var(--green); border: none;
+      border-radius: 9px; color: #fff; font-weight: 700; font-size: 12px;
+      cursor: pointer; flex-shrink: 0; transition: transform 0.1s; }
+    .cook-btn:disabled { background: var(--text3); cursor: default; }
+    .cook-btn:not(:disabled):active { transform: scale(0.95); }
+
+    /* ── LEADERBOARD ── */
+    .lb-tabs { display: flex; gap: 7px; margin-bottom: 14px; }
+    .lb-tab { flex: 1; padding: 9px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 9px; color: var(--text2); font-weight: 600; font-size: 12px;
+      cursor: pointer; text-align: center; transition: all 0.2s; }
+    .lb-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .lb-list { display: flex; flex-direction: column; gap: 8px; }
+    .lb-row { background: var(--card); border: 1px solid var(--border); border-radius: 13px;
+      padding: 11px 13px; display: flex; align-items: center; gap: 11px; }
+    .lb-row.me { border-color: var(--accent); background: rgba(232,130,26,.08); }
+    .lb-rank { font-family:'Alfa Slab One',serif; font-size: 16px; color: var(--text3); min-width: 28px; text-align: center; }
+    .lb-rank.g { color: var(--gold); } .lb-rank.s { color: #ccc; } .lb-rank.b { color: #c87f3a; }
+    .lb-n { flex: 1; font-weight: 600; font-size: 13px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-score { font-family:'Alfa Slab One',serif; font-size: 14px; color: var(--accent); flex-shrink:0; }
+
+    /* ── PVP ── */
+    .pvp-hdr { background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: center; }
+    .pvp-hdr-title { font-family:'Alfa Slab One',serif; font-size: 19px; color: var(--red); margin-bottom: 5px; }
+    .pvp-hdr-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
+    .pvp-list { display: flex; flex-direction: column; gap: 9px; }
+    .pvp-row { background: var(--card); border: 1px solid var(--border);
+      border-radius: 13px; padding: 11px 13px; display: flex; align-items: center; gap: 11px; }
+    .pvp-n { flex: 1; }
+    .pvp-name { font-weight: 600; font-size: 13px; }
+    .pvp-info { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .atk-btn { padding: 8px 13px; background: var(--red); border: none; border-radius: 9px;
+      color: #fff; font-weight: 700; font-size: 12px; cursor: pointer;
+      transition: transform 0.1s; flex-shrink: 0; }
+    .atk-btn:active { transform: scale(0.93); }
+
+    /* ── NAV ── */
+    nav { height: var(--nav-h); background: var(--bg2); border-top: 1px solid var(--border);
+      display: flex; align-items: stretch; flex-shrink: 0;
+      padding-bottom: env(safe-area-inset-bottom, 0); }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 3px; cursor: pointer; }
+    .nav-ico { font-size: 21px; transition: transform 0.2s; }
+    .nav-lbl { font-size: 10px; font-weight: 500; color: var(--text3); transition: color 0.2s; }
+    .nav-item.active .nav-ico { transform: scale(1.18); }
+    .nav-item.active .nav-lbl { color: var(--accent); }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: calc(var(--nav-h) + 14px); left: 50%;
+      transform: translateX(-50%) translateY(14px);
+      background: rgba(26,14,6,0.96); color: var(--text);
+      padding: 10px 22px; border-radius: 50px; font-weight: 600; font-size: 13px;
+      border: 1px solid var(--border2); opacity: 0; transition: all 0.28s;
+      z-index: 50; pointer-events: none; text-align: center;
+      max-width: 88vw; white-space: normal;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── EMPTY STATE ── */
+    .empty { text-align: center; padding: 40px 20px; color: var(--text2); }
+    .empty-ico { font-size: 44px; margin-bottom: 10px; }
+    .empty-txt { font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="ld-logo">🥙</div>
+  <div class="ld-title">DONER CASINO</div>
+  <div class="ld-sub">Турецкая Трапеза</div>
+  <div class="ld-dots">
+    <div class="ld-dot"></div><div class="ld-dot"></div><div class="ld-dot"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <header>
+    <div class="h-user">
+      <div class="h-avatar" id="hAvatar">?</div>
+      <div class="h-name" id="hName">Загрузка...</div>
+    </div>
+    <div class="h-coins">
+      <span>🪙</span>
+      <span class="h-coins-num" id="hCoins">0</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- SLOT -->
+    <section class="screen active" id="screen-slot">
+      <div class="slot-box">
+        <div class="slot-title">🎰 ШАМПУР-СЛОТ</div>
+        <div class="reels">
+          <div class="reel" id="r0">🥙</div>
+          <div class="reel" id="r1">🍗</div>
+          <div class="reel" id="r2">🧅</div>
+        </div>
+        <button class="spin-btn" id="spinBtn" onclick="handleSpin()">🎰 КРУТИТЬ</button>
+        <div class="spin-meta">
+          <span id="spinsLeft" class="spin-free">✨ 10 бесплатных</span>
+          <span class="spin-paid">Платно: 10 🪙</span>
+        </div>
+        <div class="win-msg normal" id="winMsg">Удачи, Султан! 🎲</div>
+      </div>
+      <div class="mini-stats">
+        <div class="mini-stat">
+          <div class="mini-stat-val" id="sTotal">0</div>
+          <div class="mini-stat-lbl">⭐ Всего очков</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-val" id="sDaily">0</div>
+          <div class="mini-stat-lbl">📅 За сегодня</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BAG -->
+    <section class="screen" id="screen-bag">
+      <div class="sec-title">🧺 Ингредиенты</div>
+      <div class="ing-grid" id="ingGrid"></div>
+      <div class="sep"></div>
+      <div class="sec-title">📖 Рецепты</div>
+      <div class="recipe-list" id="recipeList"></div>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section class="screen" id="screen-leaderboard">
+      <div class="lb-tabs">
+        <div class="lb-tab active" id="tab-daily"   onclick="switchLb('daily')">📅 Сегодня</div>
+        <div class="lb-tab"        id="tab-total"   onclick="switchLb('total')">⭐ Всего</div>
+        <div class="lb-tab"        id="tab-recipes" onclick="switchLb('recipes')">🥙 Рецепты</div>
+      </div>
+      <div class="lb-list" id="lbList">
+        <div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Загрузка...</div></div>
+      </div>
+    </section>
+
+    <!-- PVP -->
+    <section class="screen" id="screen-pvp">
+      <div class="pvp-hdr">
+        <div class="pvp-hdr-title">⚔️ Укради донер!</div>
+        <div class="pvp-hdr-desc">Атакуй соперников и воруй ингредиенты<br>Стоит 20 🪙 · Шанс успеха 40%</div>
+      </div>
+      <div class="pvp-list" id="pvpList">
+        <div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Загрузка...</div></div>
+      </div>
+    </section>
+  </main>
+
+  <nav>
+    <div class="nav-item active" id="nav-slot"        onclick="go('slot')">
+      <span class="nav-ico">🎰</span><span class="nav-lbl">Слот</span>
+    </div>
+    <div class="nav-item"        id="nav-bag"         onclick="go('bag')">
+      <span class="nav-ico">🧺</span><span class="nav-lbl">Сумка</span>
+    </div>
+    <div class="nav-item"        id="nav-leaderboard" onclick="go('leaderboard')">
+      <span class="nav-ico">👑</span><span class="nav-lbl">Рейтинг</span>
+    </div>
+    <div class="nav-item"        id="nav-pvp"         onclick="go('pvp')">
+      <span class="nav-ico">⚔️</span><span class="nav-lbl">PvP</span>
+    </div>
+  </nav>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ╔══════════════════════════════════════════╗
+// ║  CONFIG — замени на свои значения!       ║
+// ╚══════════════════════════════════════════╝
+const CFG = {
+  supabaseUrl:  'https://bvksstvbhrzuihqrgguq.supabase.co',
+  supabaseKey:  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2a3NzdHZiaHJ6dWlocXJnZ3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMzQ0NTQsImV4cCI6MjA4ODkxMDQ1NH0.PvW3rq1EZjCba2y9LPgxORGfE9timYrPCf9aDdZJxC4',
+  edgeUrl:      'https://bvksstvbhrzuihqrgguq.supabase.co/functions/v1/game-action',
+};
+
+// ── Константы ──
+const FREE_SPINS = 10;
+
+const SYMS = [
+  {id:'lavash', e:'🥙', n:'Лаваш'},
+  {id:'meat',   e:'🍗', n:'Мясо'},
+  {id:'onion',  e:'🧅', n:'Лук'},
+  {id:'tomato', e:'🍅', n:'Томат'},
+  {id:'salad',  e:'🥬', n:'Салат'},
+  {id:'sauce',  e:'🧄', n:'Соус'},
+  {id:'pepper', e:'🌶️',n:'Перец'},
+  {id:'golden', e:'👑', n:'Золотой'},
+];
+
+const RECIPES = [
+  {id:'classic',     n:'Классический',   e:'🥙', ing:{lavash:1,meat:1,salad:1,sauce:1},         c:100},
+  {id:'spicy',       n:'Острый Ахмеда',  e:'🔥', ing:{meat:1,pepper:2,sauce:1},                 c:150},
+  {id:'meat_lovers', n:'Мясной пир',      e:'🍖', ing:{meat:3,lavash:1},                         c:200},
+  {id:'veggie',      n:'Овощной',         e:'🥗', ing:{lavash:1,salad:2,tomato:1},               c:80},
+  {id:'supreme',     n:'Султанский',      e:'👑', ing:{lavash:1,meat:2,salad:1,tomato:1,sauce:1,onion:1}, c:300},
+];
+
+// ── Состояние ──
+let S = {
+  player: null,
+  initData: '',
+  screen: 'slot',
+  spinning: false,
+  lbType: 'daily',
+  demo: false,
+};
+
+const tg = window.Telegram?.WebApp;
+
+// ── INIT ──
+async function init() {
+  if (tg) { tg.ready(); tg.expand(); S.initData = tg.initData || ''; }
+  S.demo = CFG.supabaseUrl === 'YOUR_SUPABASE_URL';
+
+  if (!S.demo) {
+    window._sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey);
+  }
+
+  try {
+    if (S.demo) {
+      // Демо-режим: локальный игрок
+      const u = tg?.initDataUnsafe?.user;
+      S.player = {
+        id: 1,
+        telegram_id: u?.id || 1,
+        username: u?.username || u?.first_name || 'Тест',
+        coins: 200, total_score: 0, daily_score: 0,
+        spins_today: 0, ingredients: {}, recipes_made: 0,
+        pvp_wins: 0, pvp_losses: 0,
+      };
+      toast('⚠️ Демо-режим — настрой Supabase');
+    } else {
+      const data = await api('init');
+      if (data.error) throw new Error(data.error);
+      S.player = data.player;
+    }
+  } catch(err) {
+    console.error(err);
+    toast('Ошибка загрузки 😢');
+  }
+
+  if (!S.player) return;
+
+  refreshHeader();
+  refreshSpinMeta();
+  renderBag();
+
+  document.getElementById('loading').classList.add('hidden');
+  setTimeout(() => document.getElementById('loading').style.display = 'none', 400);
+  const app = document.getElementById('app');
+  app.style.display = 'flex';
+  app.style.flexDirection = 'column';
+  app.style.height = '100dvh';
+}
+
+// ── API ──
+async function api(action, extra = {}) {
+  const r = await fetch(CFG.edgeUrl, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action, initData: S.initData, ...extra}),
+  });
+  return r.json();
+}
+
+// ── HEADER ──
+function refreshHeader() {
+  const p = S.player; if (!p) return;
+  const name = p.username || p.first_name || 'Игрок';
+  document.getElementById('hName').textContent = name;
+  document.getElementById('hAvatar').textContent = (name[0] || '?').toUpperCase();
+  document.getElementById('hCoins').textContent = fmt(p.coins);
+  document.getElementById('sTotal').textContent = fmt(p.total_score);
+  document.getElementById('sDaily').textContent = fmt(p.daily_score);
+}
+
+function refreshSpinMeta() {
+  const free = Math.max(0, FREE_SPINS - (S.player?.spins_today || 0));
+  const el = document.getElementById('spinsLeft');
+  if (free > 0) { el.textContent = `✨ ${free} бесплатных`; el.className = 'spin-free'; }
+  else          { el.textContent = '✨ Кончились'; el.className = 'spin-paid'; }
+}
+
+// ── SLOT ──
+async function handleSpin() {
+  if (S.spinning) return;
+  const p = S.player;
+  const free = FREE_SPINS - (p.spins_today || 0);
+  if (free <= 0 && p.coins < 10) { toast('Нет монет и спинов! 😢'); return; }
+
+  S.spinning = true;
+  document.getElementById('spinBtn').disabled = true;
+  haptic('medium');
+
+  let res;
+  try {
+    res = S.demo ? localSpin() : await api('spin');
+  } catch { res = localSpin(); }
+
+  if (res.error) {
+    toast(res.error);
+    S.spinning = false;
+    document.getElementById('spinBtn').disabled = false;
+    return;
+  }
+
+  await animReels(res.reels);
+
+  // Обновляем состояние
+  p.coins        = res.totalCoins  ?? (p.coins + (res.coins || 0));
+  p.spins_today  = (p.spins_today || 0) + 1;
+  p.total_score += res.coins || 0;
+  p.daily_score += res.coins || 0;
+  if (res.ingredients) {
+    for (const [k, v] of Object.entries(res.ingredients))
+      p.ingredients[k] = (p.ingredients[k] || 0) + v;
+  }
+
+  // Показываем результат
+  const msg = document.getElementById('winMsg');
+  msg.textContent = res.message || 'Крути ещё! 🎲';
+  const coins = res.coins || 0;
+  if ((res.message||'').includes('ДЖЕКПОТ') || (res.message||'').includes('👑 ДЖЕК')) {
+    msg.className = 'win-msg jackpot'; haptic('success');
+  } else if (coins >= 100) {
+    msg.className = 'win-msg big'; haptic('success');
+  } else {
+    msg.className = 'win-msg normal';
+  }
+
+  if (coins > 5) toast(`+${coins} 🪙`);
+  refreshHeader();
+  refreshSpinMeta();
+
+  S.spinning = false;
+  document.getElementById('spinBtn').disabled = false;
+}
+
+async function animReels(indices) {
+  const rs = [0,1,2].map(i => document.getElementById(`r${i}`));
+  const promises = indices.map((idx, i) => spinReel(rs[i], idx, i * 280));
+  await Promise.all(promises);
+  if (indices[0] === indices[1] && indices[1] === indices[2]) {
+    rs.forEach(r => { r.classList.add('win'); setTimeout(() => r.classList.remove('win'), 900); });
+  }
+}
+
+function spinReel(el, finalIdx, extra) {
+  return new Promise(res => {
+    const emojis = SYMS.map(s => s.e);
+    const dur = 1100 + extra;
+    let t = 0;
+    el.classList.add('spinning');
+    const iv = setInterval(() => {
+      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      t += 55;
+      if (t >= dur) {
+        clearInterval(iv);
+        el.classList.remove('spinning');
+        el.textContent = SYMS[finalIdx].e;
+        haptic('light');
+        res();
+      }
+    }, 55);
+  });
+}
+
+// Локальный расчёт (демо/оффлайн)
+function localSpin() {
+  const w = [15,20,15,15,15,10,8,2];
+  const reels = [0,1,2].map(() => wRand(w));
+  const [a,b,c] = reels;
+  let coins = 5, message = 'Крути ещё! 🎲';
+  const ing = {};
+  for (const i of reels) { const id = SYMS[i].id; if (id!=='golden') ing[id]=(ing[id]||0)+1; }
+  if (a===b && b===c) {
+    const id = SYMS[a].id;
+    if (id==='golden') {coins=1000;message='👑 ДЖЕКПОТ! ЗОЛОТОЙ ДОНЕР!';}
+    else if (id==='pepper') {coins=500;message='🌶️ ОГОНЬ x5!';}
+    else if (id==='meat')   {coins=300;message='🍗 ТРИ МЯСА! МЯСНОЙ БОНУС!';}
+    else {coins=150;message=`🎉 ТРИ ${SYMS[a].n.toUpperCase()}!`;}
+    if (id!=='golden') ing[id]=3;
+  } else if (a===b||b===c||a===c) { coins=30; message='✨ Пара! Неплохо!'; }
+  return { reels, coins, totalCoins:(S.player.coins+coins), ingredients:ing, message };
+}
+
+function wRand(w) {
+  const t = w.reduce((a,b)=>a+b,0);
+  let r = Math.random()*t;
+  for (let i=0;i<w.length;i++) { r-=w[i]; if (r<=0) return i; }
+  return w.length-1;
+}
+
+// ── BAG ──
+function renderBag() {
+  // Ингредиенты
+  const inv = S.player?.ingredients || {};
+  document.getElementById('ingGrid').innerHTML = SYMS.filter(s=>s.id!=='golden').map(s => `
+    <div class="ing-card ${(inv[s.id]||0)>0?'has':''}">
+      <div class="ing-emoji">${s.e}</div>
+      <div class="ing-count">${inv[s.id]||0}</div>
+      <div class="ing-name">${s.n}</div>
+    </div>`).join('');
+
+  // Рецепты
+  document.getElementById('recipeList').innerHTML = RECIPES.map(r => {
+    const ok = canCraft(r, inv);
+    const ingTxt = Object.entries(r.ing)
+      .map(([id,n]) => `${SYMS.find(x=>x.id===id)?.e||id}×${n}`).join(' ');
+    return `
+      <div class="recipe-card ${ok?'can':''}">
+        <div class="recipe-ico">${r.e}</div>
+        <div class="recipe-info">
+          <div class="recipe-name">${r.n}</div>
+          <div class="recipe-ings">${ingTxt}</div>
+          <div class="recipe-reward">+${r.c} 🪙</div>
+        </div>
+        <button class="cook-btn" ${ok?'':'disabled'} onclick="cook('${r.id}')">
+          ${ok?'🍳 Готовить':'❌'}
+        </button>
+      </div>`;
+  }).join('');
+}
+
+function canCraft(recipe, inv) {
+  return Object.entries(recipe.ing).every(([id,n]) => (inv[id]||0) >= n);
+}
+
+async function cook(recipeId) {
+  const r = RECIPES.find(x=>x.id===recipeId); if (!r) return;
+  const inv = S.player.ingredients;
+  if (!canCraft(r, inv)) { toast('Не хватает ингредиентов!'); return; }
+  haptic('medium');
+
+  try {
+    let res;
+    if (S.demo) {
+      // Демо: применяем локально
+      for (const [id,n] of Object.entries(r.ing)) inv[id] = (inv[id]||0) - n;
+      S.player.coins += r.c;
+      res = {message:`🥙 ${r.n} готов! +${r.c} 🪙`, totalCoins: S.player.coins};
+    } else {
+      res = await api('recipe', {recipeName: recipeId});
+      if (res.error) { toast(res.error); return; }
+      for (const [id,n] of Object.entries(r.ing)) inv[id] = (inv[id]||0) - n;
+      S.player.coins = res.totalCoins ?? S.player.coins;
+    }
+    S.player.total_score += r.c;
+    S.player.daily_score += r.c;
+    S.player.recipes_made = (S.player.recipes_made||0)+1;
+    toast(res.message || `+${r.c} 🪙`);
+    haptic('success');
+    refreshHeader();
+    renderBag();
+  } catch(e) { toast('Ошибка 😢'); }
+}
+
+// ── LEADERBOARD ──
+async function loadLb() {
+  const el = document.getElementById('lbList');
+  el.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Загрузка...</div></div>';
+  if (S.demo) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">🔧</div><div class="empty-txt">Настрой Supabase для рейтинга</div></div>';
+    return;
+  }
+  try {
+    const col = S.lbType==='daily'?'daily_score': S.lbType==='total'?'total_score':'recipes_made';
+    const {data} = await window._sb.from('players')
+      .select('id,telegram_id,username,first_name,total_score,daily_score,recipes_made')
+      .order(col,{ascending:false}).limit(20);
+    if (!data?.length) {
+      el.innerHTML='<div class="empty"><div class="empty-ico">🏜️</div><div class="empty-txt">Пока никого</div></div>';
+      return;
+    }
+    const myId = S.player?.telegram_id;
+    const label = p => S.lbType==='daily'  ? `${fmt(p.daily_score)} ⭐`
+                     : S.lbType==='total'  ? `${fmt(p.total_score)} ⭐`
+                     : `${p.recipes_made||0} 🥙`;
+    el.innerHTML = data.map((p,i)=>{
+      const rk = i+1;
+      const rc = rk===1?'g':rk===2?'s':rk===3?'b':'';
+      const rt = rk<=3?['🥇','🥈','🥉'][rk-1]:rk;
+      const me = p.telegram_id===myId;
+      const nm = p.username||p.first_name||'Игрок';
+      return `<div class="lb-row ${me?'me':''}">
+        <div class="lb-rank ${rc}">${rt}</div>
+        <div class="lb-n">${me?'➤ ':''}${nm}</div>
+        <div class="lb-score">${label(p)}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML='<div class="empty"><div class="empty-ico">😢</div><div class="empty-txt">Ошибка</div></div>';
+  }
+}
+
+function switchLb(type) {
+  S.lbType = type;
+  ['daily','total','recipes'].forEach(t =>
+    document.getElementById(`tab-${t}`).classList.toggle('active', t===type));
+  loadLb();
+}
+
+// ── PVP ──
+async function loadPvp() {
+  const el = document.getElementById('pvpList');
+  el.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Загрузка...</div></div>';
+  if (S.demo) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">🔧</div><div class="empty-txt">Настрой Supabase для PvP</div></div>';
+    return;
+  }
+  try {
+    const {data} = await window._sb.from('players')
+      .select('id,telegram_id,username,first_name,coins,ingredients')
+      .order('total_score',{ascending:false}).limit(20);
+    const myId = S.player?.telegram_id;
+    const others = (data||[]).filter(p=>p.telegram_id!==myId);
+    if (!others.length) {
+      el.innerHTML='<div class="empty"><div class="empty-ico">🏜️</div><div class="empty-txt">Нет других игроков</div></div>';
+      return;
+    }
+    el.innerHTML = others.map(p=>{
+      const cnt = Object.values(p.ingredients||{}).reduce((a,b)=>a+(b||0),0);
+      const nm = p.username||p.first_name||'Игрок';
+      return `<div class="pvp-row">
+        <div class="pvp-n">
+          <div class="pvp-name">${nm}</div>
+          <div class="pvp-info">🧺 ${cnt} инг. · 💰 ${fmt(p.coins)}</div>
+        </div>
+        <button class="atk-btn" onclick="attack(${p.id},'${nm.replace(/'/g,'')}')">⚔️ Атака</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML='<div class="empty"><div class="empty-ico">😢</div><div class="empty-txt">Ошибка</div></div>';
+  }
+}
+
+async function attack(targetId, targetName) {
+  if (S.player.coins < 20) { toast('Нужно 20 🪙 для атаки!'); return; }
+  haptic('heavy');
+  try {
+    const res = await api('attack', {targetId});
+    if (res.error) { toast(res.error); return; }
+    // Обновляем монеты локально (edge function делает точный расчёт)
+    if (res.success && res.stolenIngredient) {
+      S.player.ingredients[res.stolenIngredient] = (S.player.ingredients[res.stolenIngredient]||0)+1;
+      S.player.coins -= 10; // потрачено (20) минус частичный возврат
+    } else {
+      S.player.coins -= 30; // 20 атака + 10 штраф
+    }
+    toast(res.message);
+    haptic(res.success ? 'success' : 'error');
+    refreshHeader();
+    renderBag();
+  } catch(e) { toast('Ошибка атаки 😢'); }
+}
+
+// ── НАВИГАЦИЯ ──
+function go(scr) {
+  if (S.screen === scr) return;
+  document.getElementById(`screen-${S.screen}`).classList.remove('active');
+  document.getElementById(`nav-${S.screen}`).classList.remove('active');
+  S.screen = scr;
+  document.getElementById(`screen-${scr}`).classList.add('active');
+  document.getElementById(`nav-${scr}`).classList.add('active');
+  document.querySelector('main').scrollTop = 0;
+  if (scr==='leaderboard') loadLb();
+  if (scr==='pvp')         loadPvp();
+  if (scr==='bag')         renderBag();
+  haptic('selection');
+}
+
+// ── УТИЛИТЫ ──
+function fmt(n) {
+  if (n==null) return '0';
+  if (n>=1e6) return (n/1e6).toFixed(1)+'M';
+  if (n>=1e3) return (n/1e3).toFixed(1)+'K';
+  return String(n);
+}
+
+let _toastT = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  if (_toastT) clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+function haptic(type) {
+  try {
+    if (type==='selection')                tg?.HapticFeedback?.selectionChanged();
+    else if (type==='success'||type==='error') tg?.HapticFeedback?.notificationOccurred(type);
+    else                                   tg?.HapticFeedback?.impactOccurred(type);
+  } catch {}
+}
+
+init();
+</script>
+</body>
+</html>
