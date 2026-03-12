@@ -267,7 +267,7 @@
           <span id="spinsLeft" class="spin-free">✨ 10 бесплатных</span>
           <span class="spin-paid">Платно: 10 🪙</span>
         </div>
-        <div class="win-msg normal" id="winMsg">Удачи, Султан! 🎲</div>
+        <div class="win-msg normal" id="winMsg">Удачи, брат! 🎲</div>
       </div>
       <div class="mini-stats">
         <div class="mini-stat">
@@ -408,15 +408,17 @@ async function init() {
   try {
     if (S.demo) {
       S.player = fallbackPlayer;
-      toast('⚠️ Демо-режим — настрой Supabase');
+      toast('⚠️ Демо-режим');
     } else {
       const data = await api('init');
-      if (data.error) throw new Error(data.error);
-      S.player = data.player;
+      if (data && data.player) {
+        S.player = data.player;
+      } else {
+        throw new Error(data?.error || 'no player in response');
+      }
     }
   } catch(err) {
     console.error('Init error:', err);
-    // Не застреваем — показываем игру в демо-режиме
     S.player = fallbackPlayer;
     S.demo = true;
     toast('⚠️ Нет связи с сервером, демо-режим');
@@ -446,7 +448,11 @@ async function api(action, extra = {}) {
     const r = await fetch(CFG.edgeUrl, {
       method: 'POST',
       signal: ctrl.signal,
-      headers: {'Content-Type':'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${CFG.supabaseKey}`,
+        'apikey': CFG.supabaseKey,
+      },
       body: JSON.stringify({action, initData: S.initData, ...extra}),
     });
     clearTimeout(t);
