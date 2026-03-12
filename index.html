@@ -379,7 +379,8 @@ const tg = window.Telegram?.WebApp;
 // ── INIT ──
 async function init() {
   if (tg) { tg.ready(); tg.expand(); S.initData = tg.initData || ''; }
-  S.demo = CFG.supabaseUrl === 'YOUR_SUPABASE_URL';
+  // Демо если: ключи не заменены ИЛИ нет initData (открыто в обычном браузере)
+  S.demo = CFG.supabaseUrl === 'YOUR_SUPABASE_URL' || !S.initData;
 
   // Supabase REST helper (без SDK — обходим CSP eval())
   window._sbGet = async (table, params = '') => {
@@ -438,18 +439,28 @@ async function init() {
 
 // ── API ──
 async function api(action, extra = {}) {
-  console.log('[API] →', action, CFG.edgeUrl);
+  console.log('[API] →', action);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000); // 8 сек таймаут
   try {
     const r = await fetch(CFG.edgeUrl, {
       method: 'POST',
+      signal: ctrl.signal,
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({action, initData: S.initData, ...extra}),
     });
+    clearTimeout(t);
+    if (!r.ok) {
+      const txt = await r.text();
+      console.warn('[API] non-ok', r.status, txt);
+      try { return JSON.parse(txt); } catch { return {error: `HTTP ${r.status}`}; }
+    }
     const json = await r.json();
     console.log('[API] ←', action, json);
     return json;
   } catch(e) {
-    console.error('[API] ✗', action, e);
+    clearTimeout(t);
+    console.error('[API] ✗', action, e.message);
     throw e;
   }
 }
