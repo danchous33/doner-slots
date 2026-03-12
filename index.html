@@ -393,18 +393,20 @@ async function init() {
     return r.json();
   };
 
+  const u = tg?.initDataUnsafe?.user;
+  const fallbackPlayer = {
+    id: 1,
+    telegram_id: u?.id || 1,
+    username: u?.username || u?.first_name || 'Игрок',
+    first_name: u?.first_name || '',
+    coins: 200, total_score: 0, daily_score: 0,
+    spins_today: 0, ingredients: {}, recipes_made: 0,
+    pvp_wins: 0, pvp_losses: 0,
+  };
+
   try {
     if (S.demo) {
-      // Демо-режим: локальный игрок
-      const u = tg?.initDataUnsafe?.user;
-      S.player = {
-        id: 1,
-        telegram_id: u?.id || 1,
-        username: u?.username || u?.first_name || 'Тест',
-        coins: 200, total_score: 0, daily_score: 0,
-        spins_today: 0, ingredients: {}, recipes_made: 0,
-        pvp_wins: 0, pvp_losses: 0,
-      };
+      S.player = fallbackPlayer;
       toast('⚠️ Демо-режим — настрой Supabase');
     } else {
       const data = await api('init');
@@ -412,11 +414,15 @@ async function init() {
       S.player = data.player;
     }
   } catch(err) {
-    console.error(err);
-    toast('Ошибка загрузки 😢');
+    console.error('Init error:', err);
+    // Не застреваем — показываем игру в демо-режиме
+    S.player = fallbackPlayer;
+    S.demo = true;
+    toast('⚠️ Нет связи с сервером, демо-режим');
   }
 
-  if (!S.player) return;
+  // Всегда скрываем загрузку
+
 
   refreshHeader();
   refreshSpinMeta();
@@ -432,12 +438,20 @@ async function init() {
 
 // ── API ──
 async function api(action, extra = {}) {
-  const r = await fetch(CFG.edgeUrl, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({action, initData: S.initData, ...extra}),
-  });
-  return r.json();
+  console.log('[API] →', action, CFG.edgeUrl);
+  try {
+    const r = await fetch(CFG.edgeUrl, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action, initData: S.initData, ...extra}),
+    });
+    const json = await r.json();
+    console.log('[API] ←', action, json);
+    return json;
+  } catch(e) {
+    console.error('[API] ✗', action, e);
+    throw e;
+  }
 }
 
 // ── HEADER ──
